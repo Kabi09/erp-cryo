@@ -45,3 +45,28 @@
 - [x] Search, filter, sorting, and pagination across all tables
 - [x] End-to-end testing of complete workflow from Lead -> SO Handover
 - [x] Final documentation and verification
+
+## Phase 5: Mobile Responsiveness & UI/UX Polish
+- [x] Responsive layout with mobile hamburger navigation drawer & backdrop overlay
+- [x] Mobile-adapted StageProgress pipeline banner with stage counter and progress tracking
+- [x] Touch-friendly Modal dialogs with dynamic height and responsive padding
+- [x] Responsive tables with horizontal scroll wrappers and touch-friendly action toolbars
+- [x] Mobile-optimized Quotation line items, 5-point verification checklist, and Lead Timeline
+- [x] Verified zero-error production build (`npm run build`)
+
+## Phase 6: Commercial Leads Table & Follow-up History Feed (User Spec Match)
+- [x] Enhanced Lead model with `priority` (LOW, MEDIUM, HIGH, URGENT), `requirements.quantity`, and `followUps` array
+- [x] Created `FollowUpModal.jsx` for both logging new follow-up interactions and modifying existing entries
+- [x] Created `EditLeadModal.jsx` for rapid editing of lead contact details, priority, source, and equipment requirements
+- [x] Re-architected `LeadsListPage.jsx` table columns to match exact user specifications:
+  - `EMAIL / CONTACT` (Contact name, phone, email, company, ref)
+  - `REQUIREMENT` (Equipment type, `Qty: X`, specifications)
+  - `EST. VALUE` (INR currency formatting)
+  - `SOURCE / TYPE` (Source channel + `NEW CUSTOMER` / `EXISTING CUSTOMER` badge)
+  - `PRIORITY` (`MEDIUM`, `HIGH`, `URGENT`, `LOW` styled pills)
+  - `STATUS / CUSTOMER LINK` (Status badge, e.g. `LOST` in red pill, customer mapping link)
+  - `ACTIONS` (`[✏️ Edit]` and `[📞 Follow-up]` action buttons + Lead Hub link)
+  - `ALL FOLLOW-UPS & NEXT DATE` (Vertical scrollable feed with Date, Outcome badge, `[Modify]` button, `💬 "notes"` comment bubble, Next Follow-up Date pill or `No next follow-up date`, and `By: [Sales Rep]`)
+- [x] Seeded exact sample lead (Manipal Academy of Higher Education - Blood Bank Refrigerator Qty 1) with all 4 user-specified follow-up interactions
+- [x] End-to-end testing of follow-up CRUD (`POST`, `PUT`, `DELETE /api/leads/:id/follow-ups/:followUpId`) and full 14-stage workflow
+

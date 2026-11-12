@@ -909,10 +909,22 @@ const seedDatabase = async () => {
         capacity: '120 Litres Supply Tank with Dual Sensors',
         specificationDetails: 'Auto controller, solenoid valves, low level alarm, battery backup',
         estimatedBudget: 400000,
+        quantity: 1,
         expectedDeliveryTime: '3-4 Weeks'
       },
+      priority: 'HIGH',
       stage: 'ENQUIRY_RECEIVED',
       status: 'New',
+      followUps: [
+        {
+          followUpDate: new Date('2026-11-12'),
+          status: 'INTERESTED',
+          notes: 'Customer requested preliminary brochure and compliance certificates',
+          nextFollowUpDate: new Date('2026-11-15'),
+          conductedByName: 'Ananya Sharma',
+          conductedBy: adminUser._id
+        }
+      ],
       assignedTo: adminUser._id,
       createdBy: adminUser._id
     });
@@ -926,6 +938,83 @@ const seedDatabase = async () => {
       documentType: 'Lead',
       documentId: lead4._id,
       createdAt: new Date(Date.now() - 1 * 86400000)
+    });
+
+    // Lead E: Blood Bank Refrigerator Lead matching User's exact prompt & image!
+    console.log('[Seed]: Creating Blood Bank Refrigerator Lead with complete Follow-up history...');
+    const lead5 = await Lead.create({
+      leadNumber: 'CSS-LD-2026-0005',
+      companyName: 'Manipal Academy of Higher Education (MAHE)',
+      contactPerson: {
+        name: 'Dr. Vikram Raman',
+        designation: 'Head of Transfusion Medicine',
+        email: 'dr.vikram@manipaluniv.res.in',
+        phone: '+91 820 292 11223'
+      },
+      email: 'procurement@manipaluniv.res.in',
+      phone: '+91 820 292 11223',
+      city: 'Manipal',
+      state: 'Karnataka',
+      source: 'Exhibition Bangalore',
+      customer: null, // NEW CUSTOMER
+      requirements: {
+        equipmentType: 'Blood Bank Refrigerator (+4°C) with automatic chart logging',
+        capacity: '360 Litres',
+        specificationDetails: 'Digital 7-day circular temperature chart recorder, battery backup, glass door',
+        estimatedBudget: 180000,
+        quantity: 1,
+        expectedDeliveryTime: '3 Weeks'
+      },
+      priority: 'MEDIUM',
+      stage: 'QUOTATION_LOST',
+      status: 'Lost',
+      followUps: [
+        {
+          followUpDate: new Date('2026-11-12'),
+          status: 'NOT INTERESTED',
+          notes: 'rejected',
+          nextFollowUpDate: null,
+          conductedByName: 'Ananya Sharma',
+          conductedBy: adminUser._id
+        },
+        {
+          followUpDate: new Date('2026-11-12'),
+          status: 'NO RESPONSE',
+          notes: 'laterrr',
+          nextFollowUpDate: null,
+          conductedByName: 'Ananya Sharma',
+          conductedBy: adminUser._id
+        },
+        {
+          followUpDate: new Date('2026-11-12'),
+          status: 'INTERESTED',
+          notes: 'send message',
+          nextFollowUpDate: new Date('2026-11-11'),
+          conductedByName: 'Ananya Sharma',
+          conductedBy: adminUser._id
+        },
+        {
+          followUpDate: new Date('2026-11-12'),
+          status: 'INTERESTED',
+          notes: 'later',
+          nextFollowUpDate: null,
+          conductedByName: 'Dr. Vikram Raman',
+          conductedBy: adminUser._id
+        }
+      ],
+      assignedTo: adminUser._id,
+      createdBy: adminUser._id
+    });
+
+    await Activity.create({
+      lead: lead5._id,
+      activityType: 'LEAD_CREATED',
+      title: 'Exhibition Enquiry Logged: CSS-LD-2026-0005',
+      description: 'Captured from Exhibition Bangalore for Blood Bank Refrigerator (+4°C) with automatic chart logging (Qty: 1, Est: Rs. 1,80,000)',
+      user: adminUser._id,
+      documentType: 'Lead',
+      documentId: lead5._id,
+      createdAt: new Date('2026-11-10')
     });
 
     console.log('[Seed]: Database successfully seeded!');

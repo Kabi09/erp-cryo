@@ -110,6 +110,7 @@ const runEndToEndTest = async () => {
 
     // 4. Create Customer Master and Map to Lead
     console.log('[Step 4] Creating Customer Master...');
+    const randomSuffix = Math.floor(1000 + Math.random() * 9000);
     const custRes = await request(
       {
         hostname: 'localhost',
@@ -120,17 +121,17 @@ const runEndToEndTest = async () => {
       },
       {
         leadId: lead._id,
-        companyName: 'Tata Memorial Hospital Advanced Cryo Research Centre',
+        companyName: `Tata Memorial Hospital Cryo Lab ${randomSuffix}`,
         contactPerson: {
           name: 'Dr. Anita Deshmukh',
           designation: 'Director of Biobanking',
-          email: 'adeshmukh@tmh.res.in',
+          email: `adeshmukh${randomSuffix}@tmh.res.in`,
           phone: '+91 98201 99887',
         },
-        email: 'purchase@tmh.res.in',
+        email: `purchase${randomSuffix}@tmh.res.in`,
         phone: '+91 22 2417 7000',
-        gstin: '27AAATT1234F1Z8',
-        pan: 'AAATT1234F',
+        gstin: `27AAATT${randomSuffix}Z8`,
+        pan: `AAATT${randomSuffix}F`,
         billingAddress: {
           addressLine1: 'Dr. E Borges Road, Parel',
           city: 'Mumbai',

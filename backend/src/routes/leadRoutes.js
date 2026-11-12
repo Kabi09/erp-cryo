@@ -7,7 +7,10 @@ const {
   updateLead,
   qualifyLead,
   getLeadActivities,
-  addLeadActivity
+  addLeadActivity,
+  addFollowUp,
+  updateFollowUp,
+  deleteFollowUp
 } = require('../controllers/leadController');
 const { protect } = require('../middlewares/auth');
 
@@ -22,9 +25,18 @@ router.route('/:id')
   .put(updateLead);
 
 router.put('/:id/qualify', qualifyLead);
+
 router.route('/:id/activities')
   .get(getLeadActivities)
   .post(addLeadActivity);
+
+// Follow-up routes
+router.route('/:id/follow-ups')
+  .post(addFollowUp);
+
+router.route('/:id/follow-ups/:followUpId')
+  .put(updateFollowUp)
+  .delete(deleteFollowUp);
 
 module.exports = router;
 

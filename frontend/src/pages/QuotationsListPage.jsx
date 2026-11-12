@@ -7,7 +7,23 @@ import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Badge } from '../components/ui/Badge';
-import { FileSpreadsheet, Search, Download, ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react';
+import { QuotationManageModal } from '../components/workflow/QuotationManageModal';
+import { QuotationModal } from '../components/workflow/QuotationModal';
+import { ShareModal } from '../components/workflow/ShareModal';
+import { PdfPreviewModal } from '../components/ui/PdfPreviewModal';
+import {
+  FileSpreadsheet,
+  Search,
+  Download,
+  Share2,
+  ChevronLeft,
+  ChevronRight,
+  ExternalLink,
+  Plus,
+  Eye,
+  SlidersHorizontal,
+  RotateCcw
+} from 'lucide-react';
 import dayjs from 'dayjs';
 
 export const QuotationsListPage = () => {
@@ -16,6 +32,12 @@ export const QuotationsListPage = () => {
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState('');
+
+  // Modals
+  const [manageQuotationId, setManageQuotationId] = useState(null);
+  const [isCreateQuoteOpen, setIsCreateQuoteOpen] = useState(false);
+  const [shareData, setShareData] = useState(null); // { id, number, customer, revision, grandTotal }
+  const [previewPdfData, setPreviewPdfData] = useState(null); // { endpoint, title, filename }
 
   const addToast = useToastStore((state) => state.addToast);
 
@@ -45,25 +67,43 @@ export const QuotationsListPage = () => {
     fetchQuotations(1);
   };
 
-  const handleDownloadPDF = (quoteId) => {
-    window.open(`/api/quotations/${quoteId}/pdf`, '_blank');
+  const formatINR = (n) => 'Rs. ' + Number(n || 0).toLocaleString('en-IN');
+
+  const handleOpenPreview = (q, rev) => {
+    setPreviewPdfData({
+      endpoint: `/quotations/${q._id}/pdf?revisionId=${rev?._id}`,
+      title: `Quotation PDF: ${q.quotationNumber} (${rev?.revisionLabel || 'Rev 0'})`,
+      filename: `${q.quotationNumber}_${rev?.revisionLabel || 'Quote'}.pdf`,
+    });
   };
 
-  const formatINR = (n) => 'Rs. ' + Number(n || 0).toLocaleString('en-IN');
+  const handleOpenShare = (q, rev) => {
+    setShareData({
+      documentId: q._id,
+      documentNumber: q.quotationNumber,
+      customer: q.customer,
+      revisionLabel: rev?.revisionLabel,
+      grandTotal: rev?.grandTotal,
+    });
+  };
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Quotations & Revisions Registry</h1>
+            <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Quotations & Revisions Registry</h1>
             <Badge variant="primary">{pagination.total} Quotations</Badge>
           </div>
           <p className="text-xs text-slate-500 mt-0.5">
-            Stage 4 to 7: Formal commercial proposals, revision preservation, and PDF documentation
+            Stage 4 to 7: Complete proposal lifecycle — Manage line items, compare/reverse revisions, share with clients, and preview PDFs
           </p>
         </div>
+
+        <Button icon={Plus} onClick={() => setIsCreateQuoteOpen(true)} className="w-full sm:w-auto self-start sm:self-auto">
+          Create New Quotation
+        </Button>
       </div>
 
       {/* Filter and Search */}
@@ -72,7 +112,7 @@ export const QuotationsListPage = () => {
           <form onSubmit={handleSearchSubmit} className="flex flex-col sm:flex-row gap-3">
             <div className="flex-1">
               <Input
-                placeholder="Search quote number..."
+                placeholder="Search quote ref or company name..."
                 icon={Search}
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -81,7 +121,7 @@ export const QuotationsListPage = () => {
 
             <div className="w-full sm:w-60">
               <Select
-                placeholder="All Statuses"
+                placeholder="All Quotation Statuses"
                 value={status}
                 onChange={(e) => setStatus(e.target.value)}
               >
@@ -115,17 +155,17 @@ export const QuotationsListPage = () => {
 
       {/* Table */}
       <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600">
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full text-left text-xs text-slate-600 min-w-[700px]">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold text-[11px] uppercase tracking-wider">
               <tr>
-                <th className="py-3 px-4">Quote Number</th>
+                <th className="py-3 px-4">Quote Ref</th>
                 <th className="py-3 px-4">Customer Account</th>
-                <th className="py-3 px-4">Lead Reference</th>
+                <th className="py-3 px-4">Lead Ref</th>
                 <th className="py-3 px-4 text-center">Active Revision</th>
                 <th className="py-3 px-4 text-right">Grand Total (INR)</th>
                 <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4 text-right">Quick Actions</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -141,18 +181,22 @@ export const QuotationsListPage = () => {
               ) : quotations.length === 0 ? (
                 <tr>
                   <td colSpan="7" className="text-center py-12 text-slate-400">
-                    No quotations found.
+                    No quotations found matching criteria.
                   </td>
                 </tr>
               ) : (
                 quotations.map((q) => {
                   const rev = q.winningRevision || q.activeRevision;
                   return (
-                    <tr key={q._id} className="hover:bg-slate-50/80 transition">
+                    <tr
+                      key={q._id}
+                      className="hover:bg-slate-50/80 transition cursor-pointer group"
+                      onClick={() => setManageQuotationId(q._id)}
+                    >
                       <td className="py-3.5 px-4 font-mono font-bold text-sky-700">
-                        <Link to={`/leads/${q.lead?._id}`} className="hover:underline">
+                        <span className="hover:underline flex items-center gap-1.5">
                           {q.quotationNumber}
-                        </Link>
+                        </span>
                         <div className="text-[10px] text-slate-400 font-normal">
                           {dayjs(q.createdAt).format('DD MMM YYYY')}
                         </div>
@@ -165,7 +209,8 @@ export const QuotationsListPage = () => {
                         {q.lead?.leadNumber}
                       </td>
                       <td className="py-3.5 px-4 text-center">
-                        <span className="bg-slate-100 text-slate-800 font-bold px-2 py-0.5 rounded text-[11px]">
+                        <span className="bg-sky-50 text-sky-800 border border-sky-200 font-bold px-2.5 py-0.5 rounded-full text-[11px] inline-flex items-center gap-1">
+                          <RotateCcw className="w-3 h-3" />
                           {rev?.revisionLabel || `Rev ${q.currentRevisionNumber || 0}`}
                         </span>
                       </td>
@@ -175,20 +220,44 @@ export const QuotationsListPage = () => {
                       <td className="py-3.5 px-4">
                         <Badge size="sm">{q.status}</Badge>
                       </td>
-                      <td className="py-3.5 px-4 text-right">
-                        <div className="flex justify-end gap-2">
+                      <td className="py-3.5 px-4 text-right" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex justify-end gap-1.5">
+                          {/* Manage Button */}
                           <Button
                             variant="secondary"
                             size="sm"
-                            icon={Download}
-                            onClick={() => handleDownloadPDF(q._id)}
+                            icon={SlidersHorizontal}
+                            onClick={() => setManageQuotationId(q._id)}
+                            title="Manage quotation, line items and revisions"
+                          >
+                            Manage
+                          </Button>
+
+                          {/* Share Button */}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            icon={Share2}
+                            onClick={() => handleOpenShare(q, rev)}
+                            title="Share quotation via Email or Link"
+                          >
+                            Share
+                          </Button>
+
+                          {/* PDF Preview & Download */}
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            icon={Eye}
+                            onClick={() => handleOpenPreview(q, rev)}
+                            title="Preview and Download PDF"
                           >
                             PDF
                           </Button>
+
+                          {/* Lead link */}
                           <Link to={`/leads/${q.lead?._id}`}>
-                            <Button variant="secondary" size="sm" icon={ExternalLink}>
-                              Manage
-                            </Button>
+                            <Button variant="ghost" size="sm" icon={ExternalLink} title="Open Lead Workflow Hub" />
                           </Link>
                         </div>
                       </td>
@@ -201,7 +270,7 @@ export const QuotationsListPage = () => {
         </div>
 
         {pagination.pages > 1 && (
-          <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
             <div>
               Page <span className="font-semibold text-slate-800">{pagination.page}</span> of{' '}
               <span className="font-semibold text-slate-800">{pagination.pages}</span>
@@ -228,7 +297,43 @@ export const QuotationsListPage = () => {
           </div>
         )}
       </Card>
+
+      {/* MODALS */}
+      <QuotationManageModal
+        isOpen={!!manageQuotationId}
+        onClose={() => setManageQuotationId(null)}
+        quotationId={manageQuotationId}
+        onUpdated={() => fetchQuotations(pagination.page)}
+      />
+
+      <QuotationModal
+        isOpen={isCreateQuoteOpen}
+        onClose={() => setIsCreateQuoteOpen(false)}
+        onSuccess={() => fetchQuotations(1)}
+      />
+
+      {shareData && (
+        <ShareModal
+          isOpen={!!shareData}
+          onClose={() => setShareData(null)}
+          type="quotation"
+          documentId={shareData.documentId}
+          documentNumber={shareData.documentNumber}
+          customer={shareData.customer}
+          revisionLabel={shareData.revisionLabel}
+          grandTotal={shareData.grandTotal}
+        />
+      )}
+
+      {previewPdfData && (
+        <PdfPreviewModal
+          isOpen={!!previewPdfData}
+          onClose={() => setPreviewPdfData(null)}
+          endpoint={previewPdfData.endpoint}
+          title={previewPdfData.title}
+          filename={previewPdfData.filename}
+        />
+      )}
     </div>
   );
 };
-

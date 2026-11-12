@@ -39,8 +39,8 @@ const leadSchema = new mongoose.Schema(
     },
     source: {
       type: String,
-      enum: ['Website', 'Email Enquiry', 'Trade Show / Expo', 'Direct Referral', 'Tender / Govt Portal', 'Phone Call', 'Existing Customer'],
-      default: 'Email Enquiry'
+      default: 'Email Enquiry',
+      trim: true
     },
     customer: {
       type: mongoose.Schema.Types.ObjectId,
@@ -52,8 +52,29 @@ const leadSchema = new mongoose.Schema(
       capacity: { type: String, default: '' },
       specificationDetails: { type: String, default: '' },
       estimatedBudget: { type: Number, default: 0 },
+      quantity: { type: Number, default: 1 },
       expectedDeliveryTime: { type: String, default: '4-6 Weeks' }
     },
+    priority: {
+      type: String,
+      enum: ['LOW', 'MEDIUM', 'HIGH', 'URGENT'],
+      default: 'MEDIUM'
+    },
+    followUps: [
+      {
+        followUpDate: { type: Date, default: Date.now },
+        status: {
+          type: String,
+          enum: ['INTERESTED', 'NOT INTERESTED', 'NO RESPONSE', 'FOLLOW UP LATER', 'BUSY', 'MEETING SCHEDULED'],
+          default: 'INTERESTED'
+        },
+        notes: { type: String, required: true },
+        nextFollowUpDate: { type: Date, default: null },
+        conductedByName: { type: String, default: 'Ananya Sharma' },
+        conductedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+        createdAt: { type: Date, default: Date.now }
+      }
+    ],
     qualification: {
       isQualified: { type: Boolean, default: null }, // null: unreviewed, true: qualified, false: disqualified
       status: {

@@ -12,14 +12,22 @@ import {
   ChevronLeft,
   ChevronRight,
   ExternalLink,
-  Flame
+  Edit2,
+  PhoneCall,
+  Pencil,
+  CheckCircle2,
+  MapPin,
+  Clock,
+  RotateCcw
 } from 'lucide-react';
-import { Card, CardHeader, CardContent } from '../components/ui/Card';
+import { Card, CardContent } from '../components/ui/Card';
 import { Button } from '../components/ui/Button';
 import { Input } from '../components/ui/Input';
 import { Select } from '../components/ui/Select';
 import { Badge } from '../components/ui/Badge';
 import { Modal } from '../components/ui/Modal';
+import { FollowUpModal } from '../components/workflow/FollowUpModal';
+import { EditLeadModal } from '../components/workflow/EditLeadModal';
 import { useToastStore } from '../store/useToastStore';
 import dayjs from 'dayjs';
 
@@ -35,23 +43,34 @@ export const LeadsListPage = () => {
   const [status, setStatus] = useState(searchParams.get('status') || '');
   const [source, setSource] = useState(searchParams.get('source') || '');
 
-  // New Lead Modal
+  // New Lead Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(searchParams.get('new') === 'true');
   const [creating, setCreating] = useState(false);
   const [newLeadForm, setNewLeadForm] = useState({
     companyName: '',
     contactName: '',
+    designation: '',
     email: '',
     phone: '',
     city: '',
     state: '',
-    source: 'Email Enquiry',
-    equipmentType: 'Liquid Nitrogen Storage Container',
+    source: 'Website',
+    priority: 'MEDIUM',
+    equipmentType: 'Blood Bank Refrigerator (+4°C) with automatic chart logging',
     capacity: '',
     specificationDetails: '',
+    quantity: 1,
     estimatedBudget: '',
     expectedDeliveryTime: '4-6 Weeks',
   });
+
+  // Action Modals
+  const [activeLeadForFollowUp, setActiveLeadForFollowUp] = useState(null);
+  const [followUpToModify, setFollowUpToModify] = useState(null);
+  const [isFollowUpModalOpen, setIsFollowUpModalOpen] = useState(false);
+
+  const [activeLeadForEdit, setActiveLeadForEdit] = useState(null);
+  const [isEditLeadModalOpen, setIsEditLeadModalOpen] = useState(false);
 
   const addToast = useToastStore((state) => state.addToast);
 
@@ -101,17 +120,22 @@ export const LeadsListPage = () => {
     try {
       setCreating(true);
       const payload = {
-        companyName: newLeadForm.companyName,
-        contactPerson: { name: newLeadForm.contactName },
-        email: newLeadForm.email,
-        phone: newLeadForm.phone,
-        city: newLeadForm.city,
-        state: newLeadForm.state,
-        source: newLeadForm.source,
+        companyName: newLeadForm.companyName.trim(),
+        contactPerson: {
+          name: newLeadForm.contactName.trim(),
+          designation: newLeadForm.designation.trim(),
+        },
+        email: newLeadForm.email.trim(),
+        phone: newLeadForm.phone.trim(),
+        city: newLeadForm.city.trim(),
+        state: newLeadForm.state.trim(),
+        source: newLeadForm.source.trim(),
+        priority: newLeadForm.priority,
         requirements: {
-          equipmentType: newLeadForm.equipmentType,
-          capacity: newLeadForm.capacity,
-          specificationDetails: newLeadForm.specificationDetails,
+          equipmentType: newLeadForm.equipmentType.trim(),
+          capacity: newLeadForm.capacity.trim(),
+          specificationDetails: newLeadForm.specificationDetails.trim(),
+          quantity: Number(newLeadForm.quantity) || 1,
           estimatedBudget: Number(newLeadForm.estimatedBudget) || 0,
           expectedDeliveryTime: newLeadForm.expectedDeliveryTime,
         },
@@ -121,20 +145,23 @@ export const LeadsListPage = () => {
       addToast({
         type: 'success',
         title: 'Enquiry Created',
-        message: `Lead ${res.data.data.leadNumber} created successfully!`,
+        message: `Lead ${res.data.data.leadNumber} captured successfully!`,
       });
       setIsCreateModalOpen(false);
       setNewLeadForm({
         companyName: '',
         contactName: '',
+        designation: '',
         email: '',
         phone: '',
         city: '',
         state: '',
-        source: 'Email Enquiry',
-        equipmentType: 'Liquid Nitrogen Storage Container',
+        source: 'Website',
+        priority: 'MEDIUM',
+        equipmentType: 'Blood Bank Refrigerator (+4°C) with automatic chart logging',
         capacity: '',
         specificationDetails: '',
+        quantity: 1,
         estimatedBudget: '',
         expectedDeliveryTime: '4-6 Weeks',
       });
@@ -143,30 +170,162 @@ export const LeadsListPage = () => {
       addToast({
         type: 'error',
         title: 'Creation Failed',
-        message: err.response?.data?.message || 'Failed to create lead',
+        message: err.response?.data?.message || 'Failed to capture lead',
       });
     } finally {
       setCreating(false);
     }
   };
 
+  // Helper for currency format
+  const formatINR = (val) => {
+    if (!val && val !== 0) return '₹0';
+    return '₹' + Number(val).toLocaleString('en-IN');
+  };
+
+  // Helper for priority badge styling
+  const getPriorityBadge = (priority) => {
+    const p = (priority || 'MEDIUM').toUpperCase();
+    switch (p) {
+      case 'URGENT':
+        return (
+          <span className="bg-rose-50 text-rose-600 border border-rose-200 font-semibold text-[10px] px-2.5 py-0.5 rounded-full inline-block">
+            URGENT
+          </span>
+        );
+      case 'HIGH':
+        return (
+          <span className="bg-orange-50 text-orange-600 border border-orange-200 font-semibold text-[10px] px-2.5 py-0.5 rounded-full inline-block">
+            HIGH
+          </span>
+        );
+      case 'LOW':
+        return (
+          <span className="bg-slate-50 text-slate-600 border border-slate-200 font-semibold text-[10px] px-2.5 py-0.5 rounded-full inline-block">
+            LOW
+          </span>
+        );
+      case 'MEDIUM':
+      default:
+        return (
+          <span className="bg-sky-50 text-sky-600 border border-sky-300 font-semibold text-[10px] px-2.5 py-0.5 rounded-full inline-block">
+            MEDIUM
+          </span>
+        );
+    }
+  };
+
+  // Helper for status badge styling
+  const getStatusBadge = (status) => {
+    const s = (status || 'New').toUpperCase();
+    switch (s) {
+      case 'LOST':
+        return (
+          <span className="bg-red-50 text-red-600 border border-red-200 font-semibold text-[11px] px-3 py-1 rounded-full inline-block tracking-wide">
+            LOST
+          </span>
+        );
+      case 'WON':
+        return (
+          <span className="bg-emerald-50 text-emerald-700 border border-emerald-200 font-semibold text-[11px] px-3 py-1 rounded-full inline-block tracking-wide">
+            WON
+          </span>
+        );
+      case 'QUALIFIED':
+        return (
+          <span className="bg-sky-50 text-sky-700 border border-sky-200 font-semibold text-[11px] px-3 py-1 rounded-full inline-block tracking-wide">
+            QUALIFIED
+          </span>
+        );
+      case 'QUOTED':
+        return (
+          <span className="bg-indigo-50 text-indigo-700 border border-indigo-200 font-semibold text-[11px] px-3 py-1 rounded-full inline-block tracking-wide">
+            QUOTED
+          </span>
+        );
+      case 'IN PROGRESS':
+        return (
+          <span className="bg-amber-50 text-amber-700 border border-amber-200 font-semibold text-[11px] px-3 py-1 rounded-full inline-block tracking-wide">
+            IN PROGRESS
+          </span>
+        );
+      default:
+        return (
+          <span className="bg-slate-50 text-slate-700 border border-slate-200 font-semibold text-[11px] px-3 py-1 rounded-full inline-block tracking-wide">
+            {s}
+          </span>
+        );
+    }
+  };
+
+  // Helper for follow-up outcome pill styling
+  const getOutcomeBadgeClass = (status) => {
+    const st = (status || 'INTERESTED').toUpperCase();
+    switch (st) {
+      case 'INTERESTED':
+        return 'border-sky-400 text-sky-600 bg-sky-50/60';
+      case 'NOT INTERESTED':
+        return 'border-rose-300 text-rose-600 bg-rose-50/60';
+      case 'NO RESPONSE':
+        return 'border-amber-400 text-amber-700 bg-amber-50/60';
+      case 'FOLLOW UP LATER':
+        return 'border-purple-300 text-purple-700 bg-purple-50/60';
+      case 'BUSY':
+        return 'border-slate-300 text-slate-700 bg-slate-50/60';
+      case 'MEETING SCHEDULED':
+        return 'border-emerald-300 text-emerald-700 bg-emerald-50/60';
+      default:
+        return 'border-slate-300 text-slate-600 bg-slate-50/60';
+    }
+  };
+
+  // Open modal handlers
+  const handleAddNewFollowUp = (lead) => {
+    setActiveLeadForFollowUp(lead);
+    setFollowUpToModify(null);
+    setIsFollowUpModalOpen(true);
+  };
+
+  const handleModifyFollowUp = (lead, followUp) => {
+    setActiveLeadForFollowUp(lead);
+    setFollowUpToModify(followUp);
+    setIsFollowUpModalOpen(true);
+  };
+
+  const handleEditLead = (lead) => {
+    setActiveLeadForEdit(lead);
+    setIsEditLeadModalOpen(true);
+  };
+
+  const handleLeadSaved = (updatedLead) => {
+    setLeads((prev) =>
+      prev.map((l) => (l._id === updatedLead._id ? updatedLead : l))
+    );
+  };
+
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
-      {/* Top Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200 shadow-2xs">
+      {/* Top Header - Matches Screenshot */}
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-2xs">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-slate-900 tracking-tight">Leads & Enquiries</h1>
-            <Badge variant="primary">{pagination.total} Records</Badge>
+            <h1 className="text-xl sm:text-2xl font-bold text-slate-900 tracking-tight">
+              Commercial Leads & Enquiries
+            </h1>
+            <Badge variant="primary">{pagination.total} Leads</Badge>
           </div>
-          <p className="text-xs text-slate-500 mt-0.5">
-            Stage 1 & 2: Record incoming requirements and qualify prospects for commercial quotations
+          <p className="text-xs text-slate-500 mt-1">
+            Inquiry capture, lead editing, qualification, and automated Customer Master conversion.
           </p>
         </div>
 
-        <Button icon={Plus} onClick={() => setIsCreateModalOpen(true)}>
-          Create New Enquiry
-        </Button>
+        <button
+          onClick={() => setIsCreateModalOpen(true)}
+          className="bg-[#0f172a] hover:bg-slate-800 text-white text-sm font-medium px-4 py-2.5 rounded-lg flex items-center justify-center gap-2 transition shadow-xs self-start sm:self-auto w-full sm:w-auto"
+        >
+          <Plus className="w-4 h-4" />
+          Capture Lead
+        </button>
       </div>
 
       {/* Filter and Search Bar */}
@@ -219,7 +378,7 @@ export const LeadsListPage = () => {
 
             <div className="flex gap-2">
               <Button type="submit" variant="secondary" className="w-full">
-                Apply Search
+                Filter
               </Button>
               {(search || stage || status || source) && (
                 <Button
@@ -241,20 +400,20 @@ export const LeadsListPage = () => {
         </CardContent>
       </Card>
 
-      {/* Leads Table */}
-      <Card>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left text-xs text-slate-600">
-            <thead className="bg-slate-50 border-b border-slate-200 text-[11px] font-semibold text-slate-700 uppercase tracking-wider">
+      {/* Main Table - Exact Column Architecture Matching Screenshot */}
+      <Card className="overflow-hidden">
+        <div className="overflow-x-auto min-w-full">
+          <table className="w-full text-left text-xs text-slate-600 min-w-[1050px]">
+            <thead className="bg-slate-50/80 border-b border-slate-200 text-slate-700 font-semibold text-[11px] uppercase tracking-wider">
               <tr>
-                <th className="py-3 px-4">Lead Number</th>
-                <th className="py-3 px-4">Company & Customer</th>
-                <th className="py-3 px-4">Contact Person</th>
-                <th className="py-3 px-4">Equipment Requirement</th>
-                <th className="py-3 px-4">Source</th>
-                <th className="py-3 px-4">Workflow Stage</th>
-                <th className="py-3 px-4">Status</th>
-                <th className="py-3 px-4 text-right">Actions</th>
+                <th className="py-3 px-4 w-[180px]">EMAIL / CONTACT</th>
+                <th className="py-3 px-4 w-[240px]">REQUIREMENT</th>
+                <th className="py-3 px-4 w-[120px]">EST. VALUE</th>
+                <th className="py-3 px-4 w-[150px]">SOURCE / TYPE</th>
+                <th className="py-3 px-4 w-[100px]">PRIORITY</th>
+                <th className="py-3 px-4 w-[130px]">STATUS / CUSTOMER LINK</th>
+                <th className="py-3 px-4 w-[110px]">ACTIONS</th>
+                <th className="py-3 px-4 w-[340px]">ALL FOLLOW-UPS & NEXT DATE</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -263,7 +422,7 @@ export const LeadsListPage = () => {
                   <td colSpan="8" className="text-center py-12 text-slate-400">
                     <div className="flex justify-center items-center gap-2">
                       <div className="w-4 h-4 border-2 border-sky-600 border-t-transparent rounded-full animate-spin" />
-                      <span>Loading leads...</span>
+                      <span>Loading leads registry...</span>
                     </div>
                   </td>
                 </tr>
@@ -274,63 +433,199 @@ export const LeadsListPage = () => {
                   </td>
                 </tr>
               ) : (
-                leads.map((lead) => (
-                  <tr key={lead._id} className="hover:bg-slate-50/80 transition group">
-                    <td className="py-3.5 px-4 font-semibold text-slate-900">
-                      <Link
-                        to={`/leads/${lead._id}`}
-                        className="text-sky-600 hover:text-sky-800 hover:underline flex items-center gap-1.5"
-                      >
-                        {lead.leadNumber}
-                      </Link>
-                      <div className="text-[10px] text-slate-400 font-normal">
-                        {dayjs(lead.createdAt).format('DD MMM YYYY')}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-semibold text-slate-900">{lead.companyName}</div>
-                      {lead.customer ? (
-                        <div className="text-[10px] text-emerald-700 font-medium">
-                          Mapped: {lead.customer.customerCode}
+                leads.map((lead) => {
+                  const followUpsList = lead.followUps || [];
+
+                  return (
+                    <tr key={lead._id} className="hover:bg-slate-50/60 transition group items-start">
+                      {/* 1. EMAIL / CONTACT */}
+                      <td className="py-4 px-4 align-top">
+                        <div className="font-bold text-slate-900 leading-tight">
+                          {lead.contactPerson?.name || lead.companyName}
                         </div>
-                      ) : (
-                        <div className="text-[10px] text-amber-600">Pending Customer Mapping</div>
-                      )}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <div className="font-medium text-slate-800">{lead.contactPerson?.name || 'N/A'}</div>
-                      <div className="text-[10px] text-slate-500">{lead.email}</div>
-                    </td>
-                    <td className="py-3.5 px-4 max-w-[200px]">
-                      <div className="font-medium text-slate-900 truncate">
-                        {lead.requirements?.equipmentType}
-                      </div>
-                      <div className="text-[10px] text-slate-500 truncate">
-                        {lead.requirements?.capacity || 'Standard Spec'}
-                      </div>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className="text-slate-600 bg-slate-100 px-2 py-0.5 rounded text-[10px] font-medium">
-                        {lead.source}
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <Badge variant="default" size="sm">
-                        {lead.stage.replace(/_/g, ' ')}
-                      </Badge>
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <Badge size="sm">{lead.status}</Badge>
-                    </td>
-                    <td className="py-3.5 px-4 text-right">
-                      <Link to={`/leads/${lead._id}`}>
-                        <Button variant="secondary" size="sm" icon={ExternalLink}>
-                          Manage
-                        </Button>
-                      </Link>
-                    </td>
-                  </tr>
-                ))
+                        <div className="text-[11px] text-slate-600 font-mono mt-0.5">
+                          {lead.phone}
+                        </div>
+                        <div className="text-[11px] text-sky-700 hover:underline truncate max-w-[170px] mt-0.5">
+                          {lead.email}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-1 flex items-center gap-1">
+                          <span className="font-medium text-slate-500">{lead.companyName}</span>
+                          {lead.city && <span>• {lead.city}</span>}
+                        </div>
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          Ref: <Link to={`/leads/${lead._id}`} className="text-slate-600 hover:text-sky-600 font-mono underline">{lead.leadNumber}</Link>
+                        </div>
+                      </td>
+
+                      {/* 2. REQUIREMENT */}
+                      <td className="py-4 px-4 align-top">
+                        <div className="font-medium text-slate-900 leading-snug">
+                          {lead.requirements?.equipmentType || 'Cryogenic Equipment'}
+                        </div>
+                        <div className="text-[11px] text-slate-500 font-semibold mt-1">
+                          Qty: <span className="text-slate-800">{lead.requirements?.quantity || 1}</span>
+                        </div>
+                        {lead.requirements?.capacity && (
+                          <div className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[220px]">
+                            Spec: {lead.requirements.capacity}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* 3. EST. VALUE */}
+                      <td className="py-4 px-4 align-top">
+                        <div className="font-bold text-slate-900 text-sm">
+                          {formatINR(lead.requirements?.estimatedBudget)}
+                        </div>
+                      </td>
+
+                      {/* 4. SOURCE / TYPE */}
+                      <td className="py-4 px-4 align-top">
+                        <div className="font-medium text-slate-800 text-xs">
+                          {lead.source || 'Website'}
+                        </div>
+                        <div className="mt-1">
+                          {lead.customer ? (
+                            <span className="inline-block bg-slate-100 text-slate-700 border border-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                              EXISTING CUSTOMER
+                            </span>
+                          ) : (
+                            <span className="inline-block bg-slate-100 text-slate-600 border border-slate-300 text-[10px] font-semibold px-2 py-0.5 rounded-full uppercase tracking-wider">
+                              NEW CUSTOMER
+                            </span>
+                          )}
+                        </div>
+                      </td>
+
+                      {/* 5. PRIORITY */}
+                      <td className="py-4 px-4 align-top">
+                        {getPriorityBadge(lead.priority)}
+                      </td>
+
+                      {/* 6. STATUS / CUSTOMER LINK */}
+                      <td className="py-4 px-4 align-top">
+                        <div>{getStatusBadge(lead.status)}</div>
+                        {lead.customer ? (
+                          <div className="text-[10px] text-emerald-700 font-medium mt-1.5 flex items-center gap-1">
+                            <span>Mapped:</span>
+                            <span className="font-mono underline">{lead.customer.customerCode || 'CU'}</span>
+                          </div>
+                        ) : (
+                          <div className="text-[10px] text-slate-400 mt-1.5">
+                            Customer Unmapped
+                          </div>
+                        )}
+                        <div className="text-[10px] text-slate-400 mt-0.5">
+                          Stage: {lead.stage?.replace(/_/g, ' ')}
+                        </div>
+                      </td>
+
+                      {/* 7. ACTIONS */}
+                      <td className="py-4 px-4 align-top">
+                        <div className="flex flex-col gap-1.5 w-24">
+                          <button
+                            type="button"
+                            onClick={() => handleEditLead(lead)}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:border-slate-300 shadow-2xs transition"
+                          >
+                            <Pencil className="w-3.5 h-3.5 text-slate-500" />
+                            Edit
+                          </button>
+
+                          <button
+                            type="button"
+                            onClick={() => handleAddNewFollowUp(lead)}
+                            className="w-full inline-flex items-center justify-center gap-1.5 px-2.5 py-1 text-xs font-medium text-slate-700 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:border-slate-300 shadow-2xs transition"
+                          >
+                            <Phone className="w-3.5 h-3.5 text-slate-500" />
+                            Follow-up
+                          </button>
+
+                          <Link
+                            to={`/leads/${lead._id}`}
+                            className="text-[10px] text-sky-600 hover:text-sky-800 text-center font-medium hover:underline mt-0.5 flex items-center justify-center gap-0.5"
+                          >
+                            Hub <ExternalLink className="w-2.5 h-2.5" />
+                          </Link>
+                        </div>
+                      </td>
+
+                      {/* 8. ALL FOLLOW-UPS & NEXT DATE - Matches Screenshot */}
+                      <td className="py-4 px-4 align-top">
+                        {followUpsList.length === 0 ? (
+                          <div className="bg-slate-50/70 border border-dashed border-slate-200 rounded-lg p-3 text-center text-slate-400 text-xs">
+                            <p>No follow-ups recorded yet</p>
+                            <button
+                              type="button"
+                              onClick={() => handleAddNewFollowUp(lead)}
+                              className="mt-1 text-sky-600 font-medium hover:underline text-[11px] inline-flex items-center gap-1"
+                            >
+                              <Plus className="w-3 h-3" /> Log first interaction
+                            </button>
+                          </div>
+                        ) : (
+                          <div className="max-h-56 overflow-y-auto pr-1 space-y-2 scrollbar-thin scrollbar-thumb-slate-300">
+                            {followUpsList.map((fu, idx) => (
+                              <div
+                                key={fu._id || idx}
+                                className="bg-white rounded-lg border border-slate-200/90 p-2.5 shadow-2xs hover:border-slate-300 transition"
+                              >
+                                {/* Top Row: Date, Outcome Pill, Modify Button */}
+                                <div className="flex items-center justify-between gap-1 mb-1.5">
+                                  <div className="flex items-center gap-1.5 flex-wrap">
+                                    <span className="text-xs font-bold text-slate-900">
+                                      {dayjs(fu.followUpDate).format('DD MMM YYYY')}
+                                    </span>
+                                    <span
+                                      className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${getOutcomeBadgeClass(
+                                        fu.status
+                                      )}`}
+                                    >
+                                      {fu.status}
+                                    </span>
+                                  </div>
+
+                                  <button
+                                    type="button"
+                                    onClick={() => handleModifyFollowUp(lead, fu)}
+                                    className="text-[11px] font-medium text-slate-700 hover:text-sky-700 border border-slate-200 hover:border-slate-300 bg-slate-50/60 hover:bg-slate-100 px-2 py-0.5 rounded flex items-center gap-1 shadow-2xs transition"
+                                  >
+                                    <Pencil className="w-3 h-3 text-sky-600" />
+                                    Modify
+                                  </button>
+                                </div>
+
+                                {/* Comment Bubble */}
+                                <div className="bg-slate-50/90 rounded border border-slate-100 px-2.5 py-1 text-xs text-slate-800 mb-1.5 font-medium flex items-start gap-1.5">
+                                  <span className="text-slate-400">💬</span>
+                                  <span className="italic font-normal text-slate-800">"{fu.notes}"</span>
+                                </div>
+
+                                {/* Bottom Row: Next Follow-up & By */}
+                                <div className="flex items-center justify-between gap-2 text-[11px] pt-0.5">
+                                  {fu.nextFollowUpDate ? (
+                                    <span className="bg-sky-50 text-sky-700 border border-sky-100 font-medium px-2 py-0.5 rounded text-[10px] inline-flex items-center gap-1">
+                                      Next Follow-up: {dayjs(fu.nextFollowUpDate).format('DD MMM YYYY')}
+                                    </span>
+                                  ) : (
+                                    <span className="text-slate-400 italic text-[11px]">
+                                      No next follow-up date
+                                    </span>
+                                  )}
+
+                                  <span className="text-slate-500 font-medium text-[11px] whitespace-nowrap">
+                                    By: {fu.conductedByName || 'Sales Rep'}
+                                  </span>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })
               )}
             </tbody>
           </table>
@@ -338,7 +633,7 @@ export const LeadsListPage = () => {
 
         {/* Pagination Footer */}
         {pagination.pages > 1 && (
-          <div className="p-4 border-t border-slate-100 flex items-center justify-between text-xs text-slate-500">
+          <div className="p-4 border-t border-slate-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-slate-500">
             <div>
               Showing page <span className="font-semibold text-slate-800">{pagination.page}</span> of{' '}
               <span className="font-semibold text-slate-800">{pagination.pages}</span> ({pagination.total} leads)
@@ -366,11 +661,11 @@ export const LeadsListPage = () => {
         )}
       </Card>
 
-      {/* Create Enquiry Modal */}
+      {/* Capture Lead Modal */}
       <Modal
         isOpen={isCreateModalOpen}
         onClose={() => setIsCreateModalOpen(false)}
-        title="Create New Cryo Enquiry / Lead"
+        title="Capture Commercial Lead / Enquiry"
         subtitle="Stage 1: Register customer interest and equipment specification requirements"
         size="lg"
       >
@@ -379,7 +674,7 @@ export const LeadsListPage = () => {
             <Input
               label="Company / Institution Name"
               required
-              placeholder="e.g. Indian Institute of Science (IISc)"
+              placeholder="e.g. Manipal Academy of Higher Education (MAHE)"
               value={newLeadForm.companyName}
               onChange={(e) => setNewLeadForm({ ...newLeadForm, companyName: e.target.value })}
             />
@@ -387,7 +682,7 @@ export const LeadsListPage = () => {
             <Input
               label="Contact Person Name"
               required
-              placeholder="e.g. Dr. Rajesh Sharma"
+              placeholder="e.g. Dr. Vikram Raman"
               value={newLeadForm.contactName}
               onChange={(e) => setNewLeadForm({ ...newLeadForm, contactName: e.target.value })}
             />
@@ -396,7 +691,7 @@ export const LeadsListPage = () => {
               label="Email Address"
               type="email"
               required
-              placeholder="e.g. rsharma@iisc.ac.in"
+              placeholder="e.g. vraman@manipaluniv.res.in"
               value={newLeadForm.email}
               onChange={(e) => setNewLeadForm({ ...newLeadForm, email: e.target.value })}
             />
@@ -404,14 +699,32 @@ export const LeadsListPage = () => {
             <Input
               label="Phone Number"
               required
-              placeholder="e.g. +91 98400 12345"
+              placeholder="e.g. +91 98765 43210"
               value={newLeadForm.phone}
               onChange={(e) => setNewLeadForm({ ...newLeadForm, phone: e.target.value })}
             />
 
             <Input
+              label="Source / Channel"
+              placeholder="e.g. Exhibition Bangalore, Website, Trade Show"
+              value={newLeadForm.source}
+              onChange={(e) => setNewLeadForm({ ...newLeadForm, source: e.target.value })}
+            />
+
+            <Select
+              label="Priority Level"
+              value={newLeadForm.priority}
+              onChange={(e) => setNewLeadForm({ ...newLeadForm, priority: e.target.value })}
+            >
+              <option value="LOW">LOW</option>
+              <option value="MEDIUM">MEDIUM</option>
+              <option value="HIGH">HIGH</option>
+              <option value="URGENT">URGENT</option>
+            </Select>
+
+            <Input
               label="City"
-              placeholder="e.g. Bangalore"
+              placeholder="e.g. Bangalore, Manipal"
               value={newLeadForm.city}
               onChange={(e) => setNewLeadForm({ ...newLeadForm, city: e.target.value })}
             />
@@ -422,57 +735,55 @@ export const LeadsListPage = () => {
               value={newLeadForm.state}
               onChange={(e) => setNewLeadForm({ ...newLeadForm, state: e.target.value })}
             />
+          </div>
 
-            <Select
-              label="Lead Source"
-              value={newLeadForm.source}
-              onChange={(e) => setNewLeadForm({ ...newLeadForm, source: e.target.value })}
-            >
-              <option value="Website">Website</option>
-              <option value="Email Enquiry">Email Enquiry</option>
-              <option value="Trade Show / Expo">Trade Show / Expo</option>
-              <option value="Direct Referral">Direct Referral</option>
-              <option value="Tender / Govt Portal">Tender / Govt Portal</option>
-              <option value="Phone Call">Phone Call</option>
-              <option value="Existing Customer">Existing Customer</option>
-            </Select>
-
-            <Select
-              label="Equipment Type"
-              value={newLeadForm.equipmentType}
-              onChange={(e) => setNewLeadForm({ ...newLeadForm, equipmentType: e.target.value })}
-            >
-              <option value="Liquid Nitrogen Bio-Storage Container">Liquid Nitrogen Bio-Storage Container</option>
-              <option value="Cryo Ultra-Low Temperature Freezer (-86°C)">Cryo Ultra-Low Temperature Freezer (-86°C)</option>
-              <option value="Vacuum Jacketed Cryogenic Transfer Line">Vacuum Jacketed Cryogenic Transfer Line</option>
-              <option value="Liquid Nitrogen Auto-Filling System">Liquid Nitrogen Auto-Filling System</option>
-              <option value="Custom Cryogenic Tank / Cryostat">Custom Cryogenic Tank / Cryostat</option>
-            </Select>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 pt-2 border-t border-slate-100">
+            <div className="sm:col-span-2">
+              <Input
+                label="Product / Equipment Requirement"
+                required
+                placeholder="e.g. Blood Bank Refrigerator (+4°C) with automatic chart logging"
+                value={newLeadForm.equipmentType}
+                onChange={(e) => setNewLeadForm({ ...newLeadForm, equipmentType: e.target.value })}
+              />
+            </div>
 
             <Input
-              label="Capacity / Model Specs"
-              placeholder="e.g. 50 Litres / 6 Canister Racks"
-              value={newLeadForm.capacity}
-              onChange={(e) => setNewLeadForm({ ...newLeadForm, capacity: e.target.value })}
-            />
-
-            <Input
-              label="Estimated Budget (INR)"
+              label="Quantity"
               type="number"
-              placeholder="e.g. 350000"
-              value={newLeadForm.estimatedBudget}
-              onChange={(e) => setNewLeadForm({ ...newLeadForm, estimatedBudget: e.target.value })}
+              min="1"
+              required
+              value={newLeadForm.quantity}
+              onChange={(e) => setNewLeadForm({ ...newLeadForm, quantity: e.target.value })}
             />
+
+            <div className="sm:col-span-1">
+              <Input
+                label="Estimated Value (INR)"
+                type="number"
+                placeholder="e.g. 180000"
+                value={newLeadForm.estimatedBudget}
+                onChange={(e) => setNewLeadForm({ ...newLeadForm, estimatedBudget: e.target.value })}
+              />
+            </div>
+
+            <div className="sm:col-span-2">
+              <Input
+                label="Expected Delivery Time"
+                value={newLeadForm.expectedDeliveryTime}
+                onChange={(e) => setNewLeadForm({ ...newLeadForm, expectedDeliveryTime: e.target.value })}
+              />
+            </div>
           </div>
 
           <div className="w-full">
             <label className="block text-xs font-semibold text-slate-700 mb-1.5">
-              Specification Details & Special Customer Requirements
+              Specification Details & Technical Requirements
             </label>
             <textarea
-              rows="3"
-              className="block w-full text-sm rounded-lg border border-slate-300 p-3 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 text-slate-800"
-              placeholder="Mention neck diameter, temperature tolerances, holding time requirements, or sensor specifications..."
+              rows="2"
+              className="block w-full text-sm rounded-lg border border-slate-300 p-2.5 focus:outline-none focus:ring-2 focus:ring-sky-500/20 focus:border-sky-500 text-slate-800"
+              placeholder="Mention temperature tolerances, holding time requirements, or sensor specifications..."
               value={newLeadForm.specificationDetails}
               onChange={(e) => setNewLeadForm({ ...newLeadForm, specificationDetails: e.target.value })}
             />
@@ -483,12 +794,35 @@ export const LeadsListPage = () => {
               Cancel
             </Button>
             <Button type="submit" loading={creating}>
-              Save & Create Lead
+              Save & Capture Lead
             </Button>
           </div>
         </form>
       </Modal>
+
+      {/* Follow-Up Modal (Add & Modify) */}
+      <FollowUpModal
+        isOpen={isFollowUpModalOpen}
+        onClose={() => {
+          setIsFollowUpModalOpen(false);
+          setActiveLeadForFollowUp(null);
+          setFollowUpToModify(null);
+        }}
+        lead={activeLeadForFollowUp}
+        followUpToEdit={followUpToModify}
+        onSaved={handleLeadSaved}
+      />
+
+      {/* Edit Lead Modal */}
+      <EditLeadModal
+        isOpen={isEditLeadModalOpen}
+        onClose={() => {
+          setIsEditLeadModalOpen(false);
+          setActiveLeadForEdit(null);
+        }}
+        lead={activeLeadForEdit}
+        onSaved={handleLeadSaved}
+      />
     </div>
   );
 };
-

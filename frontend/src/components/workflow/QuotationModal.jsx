@@ -11,10 +11,13 @@ export const QuotationModal = ({
   isOpen,
   onClose,
   lead,
+  preselectedCustomerId = null,
   existingQuotation = null,
   isRevision = false,
   onSuccess,
 }) => {
+  const [customers, setCustomers] = useState([]);
+  const [selectedCustomerId, setSelectedCustomerId] = useState(preselectedCustomerId || '');
   const [revisionReason, setRevisionReason] = useState('');
   const [paymentTerms, setPaymentTerms] = useState(
     '30% Advance with PO, 70% against Proforma Invoice prior to dispatch'
@@ -51,6 +54,23 @@ export const QuotationModal = ({
 
   useEffect(() => {
     if (isOpen) {
+      if (preselectedCustomerId) {
+        setSelectedCustomerId(preselectedCustomerId);
+      }
+      if (!lead && !isRevision) {
+        // Fetch customers list for standalone quotation creation
+        api.get('/customers', { params: { limit: 100 } })
+          .then((res) => {
+            setCustomers(res.data.data);
+            if (preselectedCustomerId) {
+              setSelectedCustomerId(preselectedCustomerId);
+            } else if (res.data.data.length > 0) {
+              setSelectedCustomerId(res.data.data[0]._id);
+            }
+          })
+          .catch(console.error);
+      }
+
       if (isRevision && existingQuotation?.activeRevision) {
         const rev = existingQuotation.activeRevision;
         setRevisionReason('');
@@ -203,8 +223,8 @@ export const QuotationModal = ({
       } else {
         // Create initial Rev 0
         const res = await api.post('/quotations', {
-          leadId: lead._id,
-          customerId: lead.customer?._id || lead.customer,
+          leadId: lead?._id || null,
+          customerId: selectedCustomerId || lead?.customer?._id || lead?.customer,
           items,
           paymentTerms,
           deliveryPeriod,
@@ -244,6 +264,27 @@ export const QuotationModal = ({
       size="xl"
     >
       <form onSubmit={handleSubmit} className="space-y-5">
+        {!lead && !isRevision && (
+          <div className="bg-sky-50 p-3.5 rounded-xl border border-sky-200">
+            <label className="block text-xs font-bold text-sky-950 mb-1.5">
+              Select Customer Account <span className="text-red-500">*</span>
+            </label>
+            <select
+              className="w-full text-xs rounded-lg border border-sky-300 bg-white p-2.5 text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500/20"
+              value={selectedCustomerId}
+              onChange={(e) => setSelectedCustomerId(e.target.value)}
+              required
+            >
+              <option value="">-- Choose Customer Master Account --</option>
+              {customers.map((c) => (
+                <option key={c._id} value={c._id}>
+                  {c.customerCode} — {c.companyName} ({c.contactPerson?.name || c.email})
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+
         {isRevision && (
           <div className="bg-amber-50 p-3.5 rounded-xl border border-amber-200">
             <label className="block text-xs font-bold text-amber-900 mb-1">

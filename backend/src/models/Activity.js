@@ -31,6 +31,10 @@ const activitySchema = new mongoose.Schema(
         'PO_AMENDMENT_SUBMITTED',
         'SO_CREATED',
         'PRODUCTION_HANDOVER',
+        'QUOTATION_SHARED',
+        'REVISION_REVERTED',
+        'QUOTATION_REOPENED',
+        'LEAD_FOLLOW_UP',
         'GENERAL_NOTE'
       ]
     },

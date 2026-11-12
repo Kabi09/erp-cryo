@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -7,22 +7,38 @@ import api from '../../services/api';
 import { Edit3, Upload, AlertCircle } from 'lucide-react';
 
 export const POAmendmentModal = ({ isOpen, onClose, customerPO, onUpdated }) => {
-  const [poNumber, setPoNumber] = useState(customerPO?.poNumber || '');
-  const [poDate, setPoDate] = useState(
-    customerPO?.poDate ? new Date(customerPO.poDate).toISOString().split('T')[0] : ''
-  );
-  const [poValue, setPoValue] = useState(customerPO?.poValue || '');
-  const [deliveryDate, setDeliveryDate] = useState(
-    customerPO?.deliveryDate ? new Date(customerPO.deliveryDate).toISOString().split('T')[0] : ''
-  );
-  const [paymentTerms, setPaymentTerms] = useState(customerPO?.paymentTerms || '');
-  const [itemSummary, setItemSummary] = useState(customerPO?.itemSummary || '');
-  const [quantity, setQuantity] = useState(customerPO?.quantity || 1);
+  const [poNumber, setPoNumber] = useState('');
+  const [poDate, setPoDate] = useState('');
+  const [poValue, setPoValue] = useState('');
+  const [deliveryDate, setDeliveryDate] = useState('');
+  const [paymentTerms, setPaymentTerms] = useState('');
+  const [itemSummary, setItemSummary] = useState('');
+  const [quantity, setQuantity] = useState(1);
   const [reasonForAmendment, setReasonForAmendment] = useState(
     'Correction of payment terms & commercial value as per approved quotation'
   );
   const [file, setFile] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (customerPO) {
+      setPoNumber(customerPO.poNumber || '');
+      setPoDate(
+        customerPO.poDate ? new Date(customerPO.poDate).toISOString().split('T')[0] : ''
+      );
+      setPoValue(customerPO.poValue || '');
+      setDeliveryDate(
+        customerPO.deliveryDate ? new Date(customerPO.deliveryDate).toISOString().split('T')[0] : ''
+      );
+      setPaymentTerms(customerPO.paymentTerms || '');
+      setItemSummary(customerPO.itemSummary || '');
+      setQuantity(customerPO.quantity || 1);
+      setReasonForAmendment(
+        'Correction of payment terms & commercial value as per approved quotation'
+      );
+      setFile(null);
+    }
+  }, [customerPO, isOpen]);
 
   const addToast = useToastStore((state) => state.addToast);
 

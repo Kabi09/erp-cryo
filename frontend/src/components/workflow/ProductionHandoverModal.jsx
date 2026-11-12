@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -7,15 +7,24 @@ import api from '../../services/api';
 import { Factory, CheckCircle2 } from 'lucide-react';
 
 export const ProductionHandoverModal = ({ isOpen, onClose, salesOrder, onUpdated }) => {
-  const [targetCompletionDate, setTargetCompletionDate] = useState(
-    salesOrder?.committedDispatchDate
-      ? new Date(salesOrder.committedDispatchDate).toISOString().split('T')[0]
-      : new Date(Date.now() + 25 * 86400000).toISOString().split('T')[0]
-  );
+  const [targetCompletionDate, setTargetCompletionDate] = useState('');
   const [remarks, setRemarks] = useState(
     'Commercial, technical, and advance payment terms verified. Clear for manufacturing and shop-floor release.'
   );
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (salesOrder) {
+      setTargetCompletionDate(
+        salesOrder.committedDispatchDate
+          ? new Date(salesOrder.committedDispatchDate).toISOString().split('T')[0]
+          : new Date(Date.now() + 25 * 86400000).toISOString().split('T')[0]
+      );
+      setRemarks(
+        'Commercial, technical, and advance payment terms verified. Clear for manufacturing and shop-floor release.'
+      );
+    }
+  }, [salesOrder, isOpen]);
 
   const addToast = useToastStore((state) => state.addToast);
 

@@ -146,6 +146,25 @@ exports.getQuotationById = async (req, res, next) => {
   }
 };
 
+// Helper to generate next Lead Number if direct quotation created
+const getNextLeadNumber = async () => {
+  const currentYear = new Date().getFullYear();
+  const prefix = `CSS-LD-${currentYear}-`;
+  const lastLead = await Lead.findOne({ leadNumber: new RegExp(`^${prefix}`) })
+    .sort({ createdAt: -1 })
+    .select('leadNumber');
+
+  let nextSequence = 1;
+  if (lastLead && lastLead.leadNumber) {
+    const parts = lastLead.leadNumber.split('-');
+    const lastSeq = parseInt(parts[parts.length - 1], 10);
+    if (!isNaN(lastSeq)) {
+      nextSequence = lastSeq + 1;
+    }
+  }
+  return `${prefix}${String(nextSequence).padStart(4, '0')}`;
+};
+
 // @desc    Create initial quotation (Rev 0)
 // @route   POST /api/quotations
 // @access  Private
@@ -163,8 +182,60 @@ exports.createQuotation = async (req, res, next) => {
       specialTerms
     } = req.body;
 
-    // Rule: Check lead exists and is qualified
-    const lead = await Lead.findById(leadId);
+    let targetLeadId = leadId;
+    let targetCustomerId = customerId;
+
+    if (!items || !items.length) {
+      return res.status(400).json({
+        success: false,
+        message: 'At least one line item is required in the quotation'
+      });
+    }
+
+    // If direct quotation created with customerId only
+    if (!targetLeadId && targetCustomerId) {
+      const Customer = require('../models/Customer');
+      const customer = await Customer.findById(targetCustomerId);
+      if (!customer) {
+        return res.status(404).json({ success: false, message: 'Customer not found' });
+      }
+
+      const leadNumber = await getNextLeadNumber();
+      const newLead = await Lead.create({
+        leadNumber,
+        companyName: customer.companyName,
+        contactPerson: customer.contactPerson,
+        email: customer.email,
+        phone: customer.phone,
+        city: customer.billingAddress?.city || '',
+        state: customer.billingAddress?.state || '',
+        source: 'Existing Customer',
+        customer: customer._id,
+        requirements: {
+          equipmentType: items[0]?.productName || 'Cryogenic Equipment',
+          capacity: items[0]?.specification || '',
+          estimatedBudget: items.reduce((acc, it) => acc + (Number(it.unitPrice) * Number(it.quantity || 1)), 0),
+          expectedDeliveryTime: deliveryPeriod || '4-6 Weeks'
+        },
+        qualification: {
+          isQualified: true,
+          status: 'Qualified',
+          qualifiedAt: new Date(),
+          qualifiedBy: req.user._id,
+          qualificationNotes: 'Direct commercial quotation generated for customer master account.',
+          budgetConfirmed: true,
+          decisionMakerIdentified: true,
+          requirementClarity: 'High'
+        },
+        stage: 'CUSTOMER_MAPPED',
+        status: 'Qualified',
+        createdBy: req.user._id,
+        assignedTo: req.user._id
+      });
+      targetLeadId = newLead._id;
+    }
+
+    const lead = await Lead.findById(targetLeadId);
     if (!lead) {
       return res.status(404).json({ success: false, message: 'Lead not found' });
     }
@@ -176,10 +247,11 @@ exports.createQuotation = async (req, res, next) => {
       });
     }
 
-    if (!items || !items.length) {
+    targetCustomerId = targetCustomerId || lead.customer;
+    if (!targetCustomerId) {
       return res.status(400).json({
         success: false,
-        message: 'At least one line item is required in the quotation'
+        message: 'A customer must be associated with this lead before drafting a quotation.'
       });
     }
 
@@ -190,7 +262,7 @@ exports.createQuotation = async (req, res, next) => {
     const quotation = new Quotation({
       quotationNumber,
       lead: lead._id,
-      customer: customerId || lead.customer,
+      customer: targetCustomerId,
       currentRevisionNumber: 0,
       status: 'Draft',
       createdBy: req.user._id
@@ -225,8 +297,8 @@ exports.createQuotation = async (req, res, next) => {
     lead.currentQuotation = quotation._id;
     lead.stage = 'QUOTATION_DRAFTED';
     lead.status = 'Quoted';
-    if (!lead.customer && customerId) {
-      lead.customer = customerId;
+    if (!lead.customer && targetCustomerId) {
+      lead.customer = targetCustomerId;
     }
     await lead.save();
 
@@ -529,6 +601,152 @@ exports.downloadQuotationPDF = async (req, res, next) => {
     res.setHeader('Content-Disposition', `inline; filename="${filename}"`);
 
     generateQuotationPDF(quotation, revision, res);
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Revert / Switch active revision
+// @route   POST /api/quotations/:id/revert-revision
+// @access  Private
+exports.revertRevision = async (req, res, next) => {
+  try {
+    const { revisionId, reason } = req.body;
+    const quotation = await Quotation.findById(req.params.id);
+    if (!quotation) {
+      return res.status(404).json({ success: false, message: 'Quotation not found' });
+    }
+
+    const revision = await QuotationRevision.findById(revisionId);
+    if (!revision || revision.quotation.toString() !== quotation._id.toString()) {
+      return res.status(404).json({ success: false, message: 'Revision not found for this quotation' });
+    }
+
+    quotation.activeRevision = revision._id;
+    quotation.currentRevisionNumber = revision.revisionNumber;
+    if (quotation.status === 'Won' || quotation.status === 'Lost') {
+      quotation.status = 'Under Negotiation';
+      quotation.winningRevision = null;
+      quotation.wonDate = null;
+    }
+    await quotation.save();
+
+    const lead = await Lead.findById(quotation.lead);
+    if (lead) {
+      lead.stage = 'QUOTATION_NEGOTIATION';
+      lead.status = 'Quoted';
+      await lead.save();
+
+      await logActivity({
+        leadId: lead._id,
+        activityType: 'REVISION_REVERTED',
+        title: `Quotation Active Revision Switched to ${revision.revisionLabel}`,
+        description: `Active proposal reverted to ${revision.revisionLabel}. Reason: ${reason || 'Customer requested earlier quotation baseline'}. Grand Total: Rs. ${revision.grandTotal.toLocaleString('en-IN')}`,
+        userId: req.user._id,
+        documentType: 'QuotationRevision',
+        documentId: revision._id,
+        metadata: { revisionLabel: revision.revisionLabel, grandTotal: revision.grandTotal }
+      });
+    }
+
+    const updated = await Quotation.findById(quotation._id)
+      .populate('activeRevision')
+      .populate('revisions')
+      .populate('customer');
+
+    res.status(200).json({
+      success: true,
+      message: `Active quotation successfully switched to ${revision.revisionLabel}`,
+      data: updated
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Reopen a Won or Lost quotation
+// @route   POST /api/quotations/:id/reopen
+// @access  Private
+exports.reopenQuotation = async (req, res, next) => {
+  try {
+    const { reopenRemarks } = req.body;
+    const quotation = await Quotation.findById(req.params.id);
+    if (!quotation) {
+      return res.status(404).json({ success: false, message: 'Quotation not found' });
+    }
+
+    quotation.status = 'Under Negotiation';
+    quotation.winningRevision = null;
+    quotation.wonDate = null;
+    quotation.lostDate = null;
+    await quotation.save();
+
+    const lead = await Lead.findById(quotation.lead);
+    if (lead) {
+      lead.stage = 'QUOTATION_NEGOTIATION';
+      lead.status = 'In Progress';
+      await lead.save();
+
+      await logActivity({
+        leadId: lead._id,
+        activityType: 'QUOTATION_REOPENED',
+        title: `Quotation Reopened: ${quotation.quotationNumber}`,
+        description: `Quotation reopened for commercial renegotiation. Remarks: ${reopenRemarks || 'Customer reopened commercial discussion'}`,
+        userId: req.user._id,
+        documentType: 'Quotation',
+        documentId: quotation._id
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Quotation reopened successfully for further negotiation & revisions',
+      data: quotation
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Share quotation via email or external link
+// @route   POST /api/quotations/:id/share
+// @access  Private
+exports.shareQuotation = async (req, res, next) => {
+  try {
+    const { recipientEmail, subject, message, shareMethod = 'Email' } = req.body;
+    const quotation = await Quotation.findById(req.params.id).populate('customer activeRevision');
+    if (!quotation) {
+      return res.status(404).json({ success: false, message: 'Quotation not found' });
+    }
+
+    const rev = quotation.activeRevision;
+    const targetEmail = recipientEmail || quotation.customer?.email;
+
+    const lead = await Lead.findById(quotation.lead);
+    if (lead) {
+      await logActivity({
+        leadId: lead._id,
+        activityType: 'QUOTATION_SHARED',
+        title: `Quotation ${quotation.quotationNumber} (${rev?.revisionLabel || 'Rev 0'}) Shared`,
+        description: `Shared via ${shareMethod} with ${targetEmail}. Subject: ${subject || `Quotation ${quotation.quotationNumber} from Cryo Scientific`}`,
+        userId: req.user._id,
+        documentType: 'Quotation',
+        documentId: quotation._id,
+        metadata: { recipientEmail: targetEmail, shareMethod }
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      message: `Quotation successfully shared with ${targetEmail}`,
+      shareDetails: {
+        quotationNumber: quotation.quotationNumber,
+        revision: rev?.revisionLabel,
+        grandTotal: rev?.grandTotal,
+        recipient: targetEmail,
+        timestamp: new Date()
+      }
+    });
   } catch (error) {
     next(error);
   }

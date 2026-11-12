@@ -152,9 +152,9 @@ export const LeadTimeline = ({ leadId }) => {
 
               {/* Event card */}
               <div className="bg-white border border-slate-200 rounded-xl p-3.5 shadow-2xs hover:shadow-xs transition">
-                <div className="flex items-center justify-between gap-2">
-                  <h4 className="text-xs font-bold text-slate-900">{act.title}</h4>
-                  <span className="text-[10px] text-slate-400 whitespace-nowrap">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-1 sm:gap-2">
+                  <h4 className="text-xs font-bold text-slate-900 leading-snug">{act.title}</h4>
+                  <span className="text-[10px] text-slate-400 whitespace-nowrap shrink-0">
                     {dayjs(act.createdAt).format('DD MMM YYYY, hh:mm A')}
                   </span>
                 </div>

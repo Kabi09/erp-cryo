@@ -18,6 +18,9 @@ import { POAmendmentModal } from '../components/workflow/POAmendmentModal';
 import { SalesOrderModal } from '../components/workflow/SalesOrderModal';
 import { ProductionHandoverModal } from '../components/workflow/ProductionHandoverModal';
 import { LeadTimeline } from '../components/workflow/LeadTimeline';
+import { ShareModal } from '../components/workflow/ShareModal';
+import { PdfPreviewModal } from '../components/ui/PdfPreviewModal';
+import { downloadPdfBlob } from '../utils/pdfDownloader';
 import {
   Building2,
   Phone,
@@ -37,7 +40,9 @@ import {
   PlusCircle,
   ExternalLink,
   Edit,
-  ArrowRight
+  ArrowRight,
+  Eye,
+  Share2
 } from 'lucide-react';
 import dayjs from 'dayjs';
 
@@ -61,6 +66,10 @@ export const LeadDetailPage = () => {
   const [isAmendmentModalOpen, setIsAmendmentModalOpen] = useState(false);
   const [isSOModalOpen, setIsSOModalOpen] = useState(false);
   const [isHandoverModalOpen, setIsHandoverModalOpen] = useState(false);
+
+  // PDF Preview & Share Modals
+  const [previewPdfData, setPreviewPdfData] = useState(null);
+  const [shareData, setShareData] = useState(null);
 
   // Selected revision for quote view
   const [selectedRevisionId, setSelectedRevisionId] = useState(null);
@@ -134,14 +143,46 @@ export const LeadDetailPage = () => {
 
   const formatINR = (n) => 'Rs. ' + Number(n || 0).toLocaleString('en-IN');
 
-  const downloadQuotationPDF = (quoteId, revId) => {
-    const url = `/api/quotations/${quoteId}/pdf${revId ? `?revisionId=${revId}` : ''}`;
-    window.open(url, '_blank');
+  const previewQuotationPDF = (quoteId, revId) => {
+    setPreviewPdfData({
+      endpoint: `/quotations/${quoteId}/pdf${revId ? `?revisionId=${revId}` : ''}`,
+      title: `Quotation ${quotation?.quotationNumber || ''}`,
+      filename: `${quotation?.quotationNumber || 'quotation'}.pdf`,
+    });
   };
 
-  const downloadPIPDF = (piId) => {
-    const url = `/api/proforma-invoices/${piId}/pdf`;
-    window.open(url, '_blank');
+  const downloadQuotationPDF = async (quoteId, revId) => {
+    try {
+      addToast({ type: 'info', title: 'PDF Generating', message: 'Downloading quotation PDF document...' });
+      await downloadPdfBlob(
+        `/quotations/${quoteId}/pdf${revId ? `?revisionId=${revId}` : ''}`,
+        `${quotation?.quotationNumber || 'quotation'}.pdf`
+      );
+      addToast({ type: 'success', title: 'Downloaded', message: 'Quotation PDF successfully saved.' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Error', message: 'Failed to download Quotation PDF' });
+    }
+  };
+
+  const previewPIPDF = (piId) => {
+    setPreviewPdfData({
+      endpoint: `/proforma-invoices/${piId}/pdf`,
+      title: `Proforma Invoice ${pi?.piNumber || ''}`,
+      filename: `${pi?.piNumber || 'proforma-invoice'}.pdf`,
+    });
+  };
+
+  const downloadPIPDF = async (piId) => {
+    try {
+      addToast({ type: 'info', title: 'PDF Generating', message: 'Downloading Proforma Invoice PDF...' });
+      await downloadPdfBlob(
+        `/proforma-invoices/${piId}/pdf`,
+        `${pi?.piNumber || 'proforma-invoice'}.pdf`
+      );
+      addToast({ type: 'success', title: 'Downloaded', message: 'PI PDF successfully saved.' });
+    } catch (err) {
+      addToast({ type: 'error', title: 'Error', message: 'Failed to download Proforma Invoice PDF' });
+    }
   };
 
   return (
@@ -327,27 +368,31 @@ export const LeadDetailPage = () => {
               />
               <CardContent>
                 {!isQualified ? (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">Stage 2: Lead Qualification</h4>
                       <p className="text-xs text-slate-600 mt-1">
                         Assess budget availability, decision-making authority, and specification clarity.
                       </p>
                     </div>
-                    <Button onClick={() => setIsQualifyOpen(true)}>Qualify Lead Now</Button>
+                    <Button onClick={() => setIsQualifyOpen(true)} className="w-full sm:w-auto self-start sm:self-auto">
+                      Qualify Lead Now
+                    </Button>
                   </div>
                 ) : !isCustomerMapped ? (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">Stage 3: Customer Master Linkage</h4>
                       <p className="text-xs text-slate-600 mt-1">
                         Link this qualified enquiry to an approved customer code or register a new customer master.
                       </p>
                     </div>
-                    <Button onClick={() => setIsCustomerModalOpen(true)}>Map Customer</Button>
+                    <Button onClick={() => setIsCustomerModalOpen(true)} className="w-full sm:w-auto self-start sm:self-auto">
+                      Map Customer
+                    </Button>
                   </div>
                 ) : !isQuoted ? (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">Stage 4: Create Initial Quotation (Rev 0)</h4>
                       <p className="text-xs text-slate-600 mt-1">
@@ -355,6 +400,7 @@ export const LeadDetailPage = () => {
                       </p>
                     </div>
                     <Button
+                      className="w-full sm:w-auto self-start sm:self-auto"
                       onClick={() => {
                         setIsQuoteRevision(false);
                         setIsQuoteModalOpen(true);
@@ -364,19 +410,20 @@ export const LeadDetailPage = () => {
                     </Button>
                   </div>
                 ) : !isWon ? (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">Stage 5-7: Customer Review & Negotiation</h4>
                       <p className="text-xs text-slate-600 mt-1">
                         Quotation {quotation.quotationNumber} is currently {quotation.status}. Record review notes, revise to Rev {quotation.currentRevisionNumber + 1}, or mark Won.
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button variant="secondary" onClick={() => setIsFeedbackModalOpen(true)}>
+                    <div className="flex gap-2 flex-wrap w-full sm:w-auto">
+                      <Button variant="secondary" onClick={() => setIsFeedbackModalOpen(true)} className="flex-1 sm:flex-initial">
                         Log Feedback
                       </Button>
                       <Button
                         variant="secondary"
+                        className="flex-1 sm:flex-initial"
                         onClick={() => {
                           setIsQuoteRevision(true);
                           setIsQuoteModalOpen(true);
@@ -384,75 +431,75 @@ export const LeadDetailPage = () => {
                       >
                         Revise Quote
                       </Button>
-                      <Button variant="success" onClick={() => setIsMarkWonOpen(true)}>
+                      <Button variant="success" onClick={() => setIsMarkWonOpen(true)} className="w-full sm:w-auto">
                         Mark Won
                       </Button>
                     </div>
                   </div>
                 ) : !isPIIssued ? (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">Stage 8: Issue Proforma Invoice</h4>
                       <p className="text-xs text-slate-600 mt-1">
                         Deal is marked Won! Issue formal Proforma Invoice to request advance payment and customer PO.
                       </p>
                     </div>
-                    <Button icon={Receipt} onClick={() => setIsPIOpen(true)}>
+                    <Button icon={Receipt} onClick={() => setIsPIOpen(true)} className="w-full sm:w-auto self-start sm:self-auto">
                       Issue PI Now
                     </Button>
                   </div>
                 ) : !isPOReceived ? (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">Stage 9: Customer PO Receipt</h4>
                       <p className="text-xs text-slate-600 mt-1">
                         Upload received Customer Purchase Order document and enter PO particulars.
                       </p>
                     </div>
-                    <Button icon={FileCheck2} onClick={() => setIsPOModalOpen(true)}>
+                    <Button icon={FileCheck2} onClick={() => setIsPOModalOpen(true)} className="w-full sm:w-auto self-start sm:self-auto">
                       Upload Customer PO
                     </Button>
                   </div>
                 ) : !isPOVerified ? (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">Stage 10: Mandatory 5-Point PO Verification</h4>
                       <p className="text-xs text-slate-600 mt-1">
                         Compare PO items, quantity, price, delivery, and payment terms against approved quote.
                       </p>
                     </div>
-                    <div className="flex gap-2">
-                      <Button icon={ClipboardCheck} onClick={() => setIsVerificationModalOpen(true)}>
+                    <div className="flex gap-2 flex-wrap w-full sm:w-auto">
+                      <Button icon={ClipboardCheck} onClick={() => setIsVerificationModalOpen(true)} className="flex-1 sm:flex-initial">
                         Perform 5-Pt Verification
                       </Button>
                       {latestVerification?.overallStatus === 'FAILED_MISMATCH' && (
-                        <Button variant="secondary" onClick={() => setIsAmendmentModalOpen(true)}>
+                        <Button variant="secondary" onClick={() => setIsAmendmentModalOpen(true)} className="flex-1 sm:flex-initial">
                           Submit PO Amendment
                         </Button>
                       )}
                     </div>
                   </div>
                 ) : !isSOCreated ? (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">Stage 11: Sales Order Creation</h4>
                       <p className="text-xs text-slate-600 mt-1">
                         Verification passed! Generate formal Sales Order linked to verified Customer PO.
                       </p>
                     </div>
-                    <Button variant="success" icon={PackageCheck} onClick={() => setIsSOModalOpen(true)}>
+                    <Button variant="success" icon={PackageCheck} onClick={() => setIsSOModalOpen(true)} className="w-full sm:w-auto self-start sm:self-auto">
                       Generate Sales Order
                     </Button>
                   </div>
                 ) : !isHandedOver ? (
-                  <div className="flex items-center justify-between gap-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                     <div>
                       <h4 className="text-sm font-bold text-slate-900">Stage 12: Production Handover</h4>
                       <p className="text-xs text-slate-600 mt-1">
                         Sales Order {so.soNumber} is generated. Formally sign off and hand over to production.
                       </p>
                     </div>
-                    <Button variant="success" icon={Factory} onClick={() => setIsHandoverModalOpen(true)}>
+                    <Button variant="success" icon={Factory} onClick={() => setIsHandoverModalOpen(true)} className="w-full sm:w-auto self-start sm:self-auto">
                       Handover to Production
                     </Button>
                   </div>
@@ -605,14 +652,43 @@ export const LeadDetailPage = () => {
                   ))}
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={Eye}
+                    onClick={() => previewQuotationPDF(quotation._id, activeRev?._id)}
+                  >
+                    Preview PDF
+                  </Button>
                   <Button
                     variant="secondary"
                     size="sm"
                     icon={Download}
                     onClick={() => downloadQuotationPDF(quotation._id, activeRev?._id)}
                   >
-                    Quotation PDF
+                    Download PDF
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    icon={Share2}
+                    onClick={() =>
+                      setShareData({
+                        documentId: quotation._id,
+                        documentNumber: quotation.quotationNumber,
+                        customer: lead.customer || {
+                          companyName: lead.companyName,
+                          email: lead.email,
+                          phone: lead.phone,
+                        },
+                        revisionLabel: activeRev?.revisionLabel || 'Rev 0',
+                        grandTotal: activeRev?.grandTotal || 0,
+                        type: 'quotation',
+                      })
+                    }
+                  >
+                    Share
                   </Button>
                   {!isWon && (
                     <>
@@ -771,9 +847,35 @@ export const LeadDetailPage = () => {
                 title={`Proforma Invoice: ${pi.piNumber}`}
                 subtitle={`Date: ${dayjs(pi.piDate).format('DD MMM YYYY')} | Status: ${pi.status}`}
                 action={
-                  <Button size="sm" icon={Download} onClick={() => downloadPIPDF(pi._id)}>
-                    Download PI PDF
-                  </Button>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button size="sm" variant="secondary" icon={Eye} onClick={() => previewPIPDF(pi._id)}>
+                      Preview PDF
+                    </Button>
+                    <Button size="sm" variant="secondary" icon={Download} onClick={() => downloadPIPDF(pi._id)}>
+                      Download PDF
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      icon={Share2}
+                      onClick={() =>
+                        setShareData({
+                          documentId: pi._id,
+                          documentNumber: pi.piNumber,
+                          customer: lead.customer || {
+                            companyName: lead.companyName,
+                            email: lead.email,
+                            phone: lead.phone,
+                          },
+                          revisionLabel: 'Approved Proforma',
+                          grandTotal: pi.grandTotal || 0,
+                          type: 'proforma-invoice',
+                        })
+                      }
+                    >
+                      Share PI
+                    </Button>
+                  </div>
                 }
               />
               <CardContent className="space-y-6">
@@ -1212,6 +1314,29 @@ export const LeadDetailPage = () => {
         salesOrder={so}
         onUpdated={fetchLeadData}
       />
+
+      {shareData && (
+        <ShareModal
+          isOpen={!!shareData}
+          onClose={() => setShareData(null)}
+          type={shareData.type}
+          documentId={shareData.documentId}
+          documentNumber={shareData.documentNumber}
+          customer={shareData.customer}
+          revisionLabel={shareData.revisionLabel}
+          grandTotal={shareData.grandTotal}
+        />
+      )}
+
+      {previewPdfData && (
+        <PdfPreviewModal
+          isOpen={!!previewPdfData}
+          onClose={() => setPreviewPdfData(null)}
+          endpoint={previewPdfData.endpoint}
+          title={previewPdfData.title}
+          filename={previewPdfData.filename}
+        />
+      )}
     </div>
   );
 };

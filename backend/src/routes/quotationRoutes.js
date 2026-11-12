@@ -8,7 +8,10 @@ const {
   addFeedback,
   markWon,
   markLost,
-  downloadQuotationPDF
+  downloadQuotationPDF,
+  revertRevision,
+  reopenQuotation,
+  shareQuotation
 } = require('../controllers/quotationController');
 const { protect } = require('../middlewares/auth');
 
@@ -25,6 +28,9 @@ router.post('/:id/revise', createRevision);
 router.post('/:id/feedback', addFeedback);
 router.post('/:id/mark-won', markWon);
 router.post('/:id/mark-lost', markLost);
+router.post('/:id/revert-revision', revertRevision);
+router.post('/:id/reopen', reopenQuotation);
+router.post('/:id/share', shareQuotation);
 router.get('/:id/pdf', downloadQuotationPDF);
 
 module.exports = router;

@@ -1,6 +1,7 @@
 const CustomerPurchaseOrder = require('../models/CustomerPurchaseOrder');
 const Lead = require('../models/Lead');
 const Quotation = require('../models/Quotation');
+const POVerification = require('../models/POVerification');
 const logActivity = require('../utils/activityLogger');
 const path = require('path');
 
@@ -74,7 +75,14 @@ exports.getPOById = async (req, res, next) => {
       return res.status(404).json({ success: false, message: 'Purchase Order not found' });
     }
 
-    res.status(200).json({ success: true, data: po });
+    const latestVerification = await POVerification.findOne({ customerPO: po._id })
+      .populate('verifiedBy', 'name email')
+      .sort({ createdAt: -1 });
+
+    const poObj = po.toObject();
+    poObj.latestVerification = latestVerification;
+
+    res.status(200).json({ success: true, data: poObj });
   } catch (error) {
     next(error);
   }

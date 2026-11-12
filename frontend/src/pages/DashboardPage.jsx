@@ -94,20 +94,20 @@ export const DashboardPage = () => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto">
       {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 bg-white p-5 rounded-2xl border border-slate-200/90 shadow-2xs">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 bg-white p-4 sm:p-5 rounded-2xl border border-slate-200/90 shadow-2xs">
         <div>
-          <h1 className="text-xl font-bold text-slate-900 tracking-tight">Sales Executive Dashboard</h1>
+          <h1 className="text-lg sm:text-xl font-bold text-slate-900 tracking-tight">Sales Executive Dashboard</h1>
           <p className="text-xs text-slate-500 mt-0.5">
             Real-time pipeline monitoring from Lead Enquiry to Production Handover
           </p>
         </div>
-        <div className="flex items-center gap-3">
-          <div className="bg-sky-50 border border-sky-200 rounded-xl px-4 py-2 text-right">
-            <div className="text-[10px] uppercase font-bold text-sky-800 tracking-wider">Active Pipeline Value</div>
-            <div className="text-base font-bold text-sky-950">{formatINR(cards?.totalPipelineValue)}</div>
+        <div className="flex items-center gap-2.5 sm:gap-3 w-full sm:w-auto justify-between sm:justify-end">
+          <div className="bg-sky-50 border border-sky-200 rounded-xl px-3 py-1.5 sm:px-4 sm:py-2 text-right">
+            <div className="text-[9px] sm:text-[10px] uppercase font-bold text-sky-800 tracking-wider">Active Pipeline Value</div>
+            <div className="text-sm sm:text-base font-bold text-sky-950">{formatINR(cards?.totalPipelineValue)}</div>
           </div>
-          <Link to="/leads?new=true">
-            <Button size="md" icon={Plus}>New Enquiry</Button>
+          <Link to="/leads?new=true" className="shrink-0">
+            <Button size="md" icon={Plus} className="text-xs sm:text-sm">New Enquiry</Button>
           </Link>
         </div>
       </div>

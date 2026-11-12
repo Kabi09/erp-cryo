@@ -136,6 +136,7 @@ exports.createLead = async (req, res, next) => {
       state,
       source,
       requirements,
+      priority,
       customer
     } = req.body;
 
@@ -150,7 +151,8 @@ exports.createLead = async (req, res, next) => {
       city,
       state,
       source: source || 'Email Enquiry',
-      requirements: requirements || { equipmentType: 'Cryogenic Container' },
+      requirements: requirements || { equipmentType: 'Cryogenic Container', quantity: 1 },
+      priority: priority || 'MEDIUM',
       customer: customer || null,
       stage: 'ENQUIRY_RECEIVED',
       status: 'New',
@@ -198,6 +200,7 @@ exports.updateLead = async (req, res, next) => {
       'state',
       'source',
       'requirements',
+      'priority',
       'customer',
       'assignedTo',
       'status'
@@ -342,6 +345,124 @@ exports.addLeadActivity = async (req, res, next) => {
       success: true,
       message: 'Note added to lead timeline',
       data: activity
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Add a follow-up entry to a lead
+// @route   POST /api/leads/:id/follow-ups
+// @access  Private
+exports.addFollowUp = async (req, res, next) => {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    const { followUpDate, status, notes, nextFollowUpDate, conductedByName } = req.body;
+    if (!notes || !notes.trim()) {
+      return res.status(400).json({ success: false, message: 'Follow-up remarks/notes are required' });
+    }
+
+    const newFollowUp = {
+      followUpDate: followUpDate ? new Date(followUpDate) : new Date(),
+      status: status || 'INTERESTED',
+      notes: notes.trim(),
+      nextFollowUpDate: nextFollowUpDate ? new Date(nextFollowUpDate) : null,
+      conductedByName: conductedByName || req.user.name || 'Sales Representative',
+      conductedBy: req.user._id,
+      createdAt: new Date()
+    };
+
+    if (!lead.followUps) lead.followUps = [];
+    lead.followUps.unshift(newFollowUp);
+    await lead.save();
+
+    await logActivity({
+      leadId: lead._id,
+      activityType: 'LEAD_FOLLOW_UP',
+      title: `Follow-up: ${newFollowUp.status}`,
+      description: `Follow-up logged by ${newFollowUp.conductedByName}: "${newFollowUp.notes}"${newFollowUp.nextFollowUpDate ? ` (Next Date: ${new Date(newFollowUp.nextFollowUpDate).toLocaleDateString()})` : ''}`,
+      userId: req.user._id,
+      documentType: 'Lead',
+      documentId: lead._id
+    });
+
+    res.status(201).json({
+      success: true,
+      message: 'Follow-up logged successfully',
+      data: lead
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Modify/Update an existing follow-up entry
+// @route   PUT /api/leads/:id/follow-ups/:followUpId
+// @access  Private
+exports.updateFollowUp = async (req, res, next) => {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    const followUp = lead.followUps.id(req.params.followUpId);
+    if (!followUp) {
+      return res.status(404).json({ success: false, message: 'Follow-up entry not found' });
+    }
+
+    const { followUpDate, status, notes, nextFollowUpDate, conductedByName } = req.body;
+    if (followUpDate) followUp.followUpDate = new Date(followUpDate);
+    if (status) followUp.status = status;
+    if (notes) followUp.notes = notes.trim();
+    if (nextFollowUpDate !== undefined) {
+      followUp.nextFollowUpDate = nextFollowUpDate ? new Date(nextFollowUpDate) : null;
+    }
+    if (conductedByName) followUp.conductedByName = conductedByName;
+
+    await lead.save();
+
+    await logActivity({
+      leadId: lead._id,
+      activityType: 'LEAD_FOLLOW_UP',
+      title: `Follow-up Modified: ${followUp.status}`,
+      description: `Follow-up record updated: "${followUp.notes}"`,
+      userId: req.user._id,
+      documentType: 'Lead',
+      documentId: lead._id
+    });
+
+    res.status(200).json({
+      success: true,
+      message: 'Follow-up modified successfully',
+      data: lead
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Delete a follow-up entry
+// @route   DELETE /api/leads/:id/follow-ups/:followUpId
+// @access  Private
+exports.deleteFollowUp = async (req, res, next) => {
+  try {
+    const lead = await Lead.findById(req.params.id);
+    if (!lead) {
+      return res.status(404).json({ success: false, message: 'Lead not found' });
+    }
+
+    lead.followUps.pull({ _id: req.params.followUpId });
+    await lead.save();
+
+    res.status(200).json({
+      success: true,
+      message: 'Follow-up removed',
+      data: lead
     });
   } catch (error) {
     next(error);

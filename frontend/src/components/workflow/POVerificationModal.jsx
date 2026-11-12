@@ -62,12 +62,23 @@ export const POVerificationModal = ({
   // Auto detect mismatches on initial open
   useEffect(() => {
     if (isOpen && wonRev && customerPO) {
+      const quoteQty = wonRev?.items?.reduce((acc, it) => acc + (it.quantity || 1), 0) || 1;
+      const poQty = customerPO.quantity || 1;
+      const qtyMatches = Number(quoteQty) === Number(poQty);
+      setPoint2({
+        status: qtyMatches ? 'MATCH' : 'MISMATCH',
+        remarks: qtyMatches
+          ? 'Quantity matches quotation line items.'
+          : `PO Quantity (${poQty}) does not match Quotation Quantity (${quoteQty}).`,
+      });
+
       const priceMatches = Math.abs(Number(wonRev.grandTotal) - Number(customerPO.poValue)) < 1;
-      setPoint3((prev) => ({
-        ...prev,
+      setPoint3({
         status: priceMatches ? 'MATCH' : 'MISMATCH',
-        remarks: priceMatches ? 'Pricing matches approved quotation.' : 'PO Total Value does not match quotation grand total.',
-      }));
+        remarks: priceMatches
+          ? 'Pricing matches approved quotation.'
+          : `PO Total (Rs. ${Number(customerPO.poValue).toLocaleString('en-IN')}) does not match Quotation Grand Total (Rs. ${Number(wonRev.grandTotal).toLocaleString('en-IN')}).`,
+      });
     }
   }, [isOpen, wonRev, customerPO]);
 
@@ -190,8 +201,8 @@ export const POVerificationModal = ({
         )}
 
         {/* 5-Point Verification Interactive Table */}
-        <div className="border border-slate-200 rounded-xl overflow-hidden shadow-xs">
-          <table className="w-full text-left text-xs">
+        <div className="border border-slate-200 rounded-xl overflow-x-auto shadow-xs">
+          <table className="w-full text-left text-xs min-w-[650px]">
             <thead className="bg-slate-50 border-b border-slate-200 text-slate-700 font-semibold text-[11px] uppercase tracking-wider">
               <tr>
                 <th className="py-3 px-3.5 w-12 text-center">#</th>

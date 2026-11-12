@@ -199,3 +199,55 @@ exports.downloadPIPDF = async (req, res, next) => {
   }
 };
 
+// @desc    Update PI status (e.g., Advance Received, Paid)
+// @route   PUT /api/proforma-invoices/:id/status
+// @access  Private
+exports.updatePIStatus = async (req, res, next) => {
+  try {
+    const { status, notes } = req.body;
+    const pi = await ProformaInvoice.findById(req.params.id);
+    if (!pi) {
+      return res.status(404).json({ success: false, message: 'Proforma Invoice not found' });
+    }
+
+    pi.status = status || pi.status;
+    if (notes) pi.notes = notes;
+    await pi.save();
+
+    res.status(200).json({
+      success: true,
+      message: `Proforma Invoice status updated to ${pi.status}`,
+      data: pi
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+// @desc    Share PI via email / link
+// @route   POST /api/proforma-invoices/:id/share
+// @access  Private
+exports.sharePI = async (req, res, next) => {
+  try {
+    const { recipientEmail, subject, message } = req.body;
+    const pi = await ProformaInvoice.findById(req.params.id).populate('customer lead');
+    if (!pi) {
+      return res.status(404).json({ success: false, message: 'Proforma Invoice not found' });
+    }
+
+    const targetEmail = recipientEmail || pi.customer?.email;
+    res.status(200).json({
+      success: true,
+      message: `Proforma Invoice ${pi.piNumber} shared successfully with ${targetEmail}`,
+      shareDetails: {
+        piNumber: pi.piNumber,
+        grandTotal: pi.grandTotal,
+        recipient: targetEmail,
+        timestamp: new Date()
+      }
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+

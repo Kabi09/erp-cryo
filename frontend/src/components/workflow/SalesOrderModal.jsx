@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { Input } from '../ui/Input';
@@ -15,16 +15,22 @@ export const SalesOrderModal = ({
   latestVerification,
   onSuccess,
 }) => {
-  const [committedDispatchDate, setCommittedDispatchDate] = useState(
-    customerPO?.deliveryDate
-      ? new Date(customerPO.deliveryDate).toISOString().split('T')[0]
-      : new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]
-  );
+  const [committedDispatchDate, setCommittedDispatchDate] = useState('');
   const [deliverySchedule, setDeliverySchedule] = useState('4 Weeks from order acceptance');
   const [specialInstructions, setSpecialInstructions] = useState(
     'Factory vacuum and pressure test certificate required before packing.'
   );
   const [submitting, setSubmitting] = useState(false);
+
+  useEffect(() => {
+    if (customerPO) {
+      setCommittedDispatchDate(
+        customerPO?.deliveryDate
+          ? new Date(customerPO.deliveryDate).toISOString().split('T')[0]
+          : new Date(Date.now() + 30 * 86400000).toISOString().split('T')[0]
+      );
+    }
+  }, [customerPO, isOpen]);
 
   const addToast = useToastStore((state) => state.addToast);
 
