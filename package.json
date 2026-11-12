@@ -1,0 +1,21 @@
+{
+  "name": "cryoscientific-erp",
+  "version": "1.0.0",
+  "description": "Cryo Scientific Systems Pvt. Ltd. – Enquiry to Sales Order (SO) Management System",
+  "scripts": {
+    "start:backend": "npm --prefix backend start",
+    "dev:backend": "npm --prefix backend run dev",
+    "seed:backend": "npm --prefix backend run seed",
+    "dev:frontend": "npm --prefix frontend run dev",
+    "build:frontend": "npm --prefix frontend run build"
+  },
+  "keywords": [
+    "erp",
+    "cryo-scientific",
+    "sales-order",
+    "enquiry",
+    "mern"
+  ],
+  "author": "Cryo Scientific Systems Pvt. Ltd.",
+  "license": "ISC"
+}
